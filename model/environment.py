@@ -2,16 +2,16 @@ from abc import ABCMeta, abstractmethod
 import logging
 
 from panda3d.bullet import BulletWorld
-from interface import Constructable, Renderable
-from physic import Constructor
+from direct.showbase.ShowBase import ShowBase
+from gears import Renderable
+from primitives import Constructor
 
 
-class BaseEnvironment(Constructor, Constructable, Renderable):
+class BaseEnvironment(Constructor, Renderable):
     def __init__(self, world, robot):
         self._renderable = [robot]
         self.robot = robot
         self.world = world.bullet_world
-        self.camera = Camera()
         self.construct()
 
     @abstractmethod
@@ -33,7 +33,6 @@ class FloorEnvironment(BaseEnvironment):
     def construct(self):
         self.construct_floor()
         self.construct_light()
-        self.construct_camera()
 
     def construct_floor(self):
         self.add_box(size=(40, 10, 0.1), color='grey')
@@ -44,12 +43,22 @@ class FloorEnvironment(BaseEnvironment):
         self.add_point_light(color=COLOR, pos=(0, -3, 1))
         self.add_spot_light(color=COLOR, pos=(0, 5, 10), target=(0, 0, 0))
 
-    def construct_camera(self):
+    def construct_camera(self, base):
+        self.camera = Camera(base)
         self.camera.pos = 10, -30, 0
         self.camera.target = 0, 0, 0
 
-    def render(self, render):
+    def render(self):
+        app = ShowBase()
+        self.construct_camera(base)
         [rend_obj.render(render) for rend_obj in self._renderable]
+        taskMgr.add(self.update, 'update')
+        app.run()
+
+    def update(self, task):
+        dt = globalClock.getDt()
+        self.world.doPhysics(dt)
+        return task.cont
 
 
 class DefaultWorld:
@@ -59,17 +68,20 @@ class DefaultWorld:
 
 
 class Camera:
+    def __init__(self, base):
+        self.base = base
+
     def _get_pos(self):
-        return base.cam.GetPos()
+        return self.base.cam.GetPos()
 
     def _set_pos(self, pos):
-        base.cam.setPos(pos)
+        self.base.cam.setPos(pos)
 
     def _get_target(self):
-        return base.cam.GetTarget()
+        return self.base.cam.GetTarget()
 
     def _set_target(self, target):
-        base.cam.lookAt(target)
+        self.base.cam.lookAt(target)
         
     pos = property(_get_pos, _set_pos)
     target = property(_get_target, _set_target)

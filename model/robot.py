@@ -1,8 +1,8 @@
 from abc import ABCMeta, abstractmethod
-from physic import Constructor
-from interface import Constructable, Renderable 
+from primitives import Constructor
+from gears import Renderable 
 
-class BaseRobot(Constructable, Renderable):
+class BaseRobot(Renderable):
     def __init__(self, world):
         self.world = world.bullet_world
         self._renderable = []

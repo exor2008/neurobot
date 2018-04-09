@@ -1,4 +1,4 @@
-from interface import *
+from gears import *
 from environment import *
 from robot import *
-import physic
+import primitives
