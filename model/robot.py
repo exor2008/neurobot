@@ -1,41 +1,20 @@
 from abc import ABCMeta, abstractmethod
-from physic import *
+from physic import Constructor
+from interface import Constructable, Renderable 
 
-class BaseRobot(metaclass=ABCMeta):
+class BaseRobot(Constructable, Renderable):
     def __init__(self, world):
-        self.world = world
+        self.world = world.bullet_world
         self._renderable = []
         self._engines = []
         self.construct()
 
     @abstractmethod
-    def construct(self):
-        pass
-
-    @abstractmethod
-    def render(self, render):
-        pass
-
-    @abstractmethod
     def act(self, actions):
         pass
-
-
-class RobotConstructor:
-    def add_box(self, *args, **kwargs):
-        box = PhysicBox(*args, **kwargs)
-        self.world.attachRigidBody(box.node)
-        self._renderable.append(box)
-        return box
-
-    def add_hinge_joint(self, *args, **kwargs):
-        joint = HingeJoint(*args, **kwargs)
-        self.world.attachConstraint(joint.constr)
-        self._engines.append(joint)
-        return joint
     
 
-class AmoebaRobot(BaseRobot, RobotConstructor):
+class AmoebaRobot(BaseRobot, Constructor):
     def construct(self):
         self.body = self.add_box(size=(2, 1, 1), 
             pos=(0, 0, 1), mass=2, friction=1, color='blue')
@@ -55,4 +34,4 @@ class AmoebaRobot(BaseRobot, RobotConstructor):
     def render(self, render):
         [rend_obj.render(render) for rend_obj in self._renderable]
 
-__all__ = ['BaseRobot', 'AmoebaRobot']
+__all__ = ['AmoebaRobot']
