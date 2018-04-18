@@ -119,15 +119,21 @@ class SpotLight(BaseLight):
 
 
 class Constructor:
+    def __init__(self):
+        self._renderable = []
+        self._engines = []
+        self.parts = []
+
     def add_box(self, *args, **kwargs):
         box = Box(*args, **kwargs)
-        self.world.attachRigidBody(box.node)
+        self.physic.attachRigidBody(box.node)
         self._renderable.append(box)
+        self.parts.append(box)
         return box
 
     def add_hinge_joint(self, *args, **kwargs):
         joint = HingeJoint(*args, **kwargs)
-        self.world.attachConstraint(joint.constr)
+        self.physic.attachConstraint(joint.constr)
         self._engines.append(joint)
         return joint
 

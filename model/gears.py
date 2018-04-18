@@ -45,9 +45,19 @@ class RigidBody:
     def _get_friction(self):
         return self.node.get_friction()
 
+    def _get_ang_velosity(self):
+        vel = self.node.getAngularVelocity()
+        return vel.x, vel.y, vel.z
+
+    def _get_lin_velosity(self):
+        vel =  self.node.getLinearVelocity()
+        return vel.x, vel.y, vel.z
+
     pos = property(_get_pos, _set_pos)
     hpr = property(_get_hpr, _set_hpr)
     mass = property(_get_mass, _set_mass)
+    ang_vel = property(_get_ang_velosity)
+    lin_vel = property(_get_lin_velosity)
     friction = property(_get_friction, _set_friction)
 
 __all__ = ['Renderable', 'RigidBody']
