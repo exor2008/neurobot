@@ -9,9 +9,9 @@ from keras.optimizers import Adam
 import tensorflow as tf
 import keras.backend as K
 import numpy as np
-from agent import Agent
 from replaybuf import ReplayBuffer
 from utils import orn_uhlen
+from baseagent import BaseAgent
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(message)s')
 
@@ -23,29 +23,32 @@ GAMMA = 0.99
 TAU = 0.001     #Target Network HyperParameters
 LRA = 0.0001    #Learning rate for Actor
 LRC = 0.001     #Lerning rate for Critic
-EXPLORE = 100000.
+EXPLORE = 10000.
 MAX_STEPS = 100000
 
 
-class DDPG(Agent):
-    def __init__(self, env, actions_dim, state_dim):
+class WeightSerialization:
+    def save_weights(self):
+        self.actor.model.save_weights(os.path.join("model", "actormodel.h5"), overwrite=True)
+        self.critic.model.save_weights(os.path.join("model", "criticmodel.h5"), overwrite=True)
+        logging.info("Model saved")
+
+    def load_weights(self, actor_file_name, critic_file_name):
+        self.actor.model.load_weights(actor_file_name)
+        self.critic.model.load_weights(critic_file_name)
+        self.actor.target_model.load_weights(actor_file_name)
+        self.critic.target_model.load_weights(critic_file_name)
+        logging.info("Model loaded")
+
+
+class DDPG(BaseAgent, WeightSerialization):
+    def __init__(self, env, actor, critic, sess):
         super(DDPG, self).__init__(env)
-        self.actions_dim = actions_dim
-        self.state_dim = state_dim
-        self.config_tf()
-        self.create_nets()
+        self.actor = actor
+        self.critic = critic
+        self.sess = sess
         self.create_buffer()
         self.epsilon = 1
-
-    def config_tf(self):
-        config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        self.sess = tf.Session(config=config)
-        K.set_session(self.sess)
-
-    def create_nets(self):
-        self.actor = ActorNetwork(self.sess, self.state_dim, self.actions_dim, TAU, LRA)
-        self.critic = CriticNetwork(self.sess, self.state_dim, self.actions_dim, TAU, LRC)
 
     def create_buffer(self):
         self.buff = ReplayBuffer(BUFFER_SIZE, ['state', 'action', 'reward', 'new_state', 'done'])
@@ -110,26 +113,12 @@ class DDPG(Agent):
         actions += noise
         return actions
 
-    def save_weights(self):
-        self.actor.model.save_weights(os.path.join("model", "actormodel.h5"), overwrite=True)
-        self.critic.model.save_weights(os.path.join("model", "criticmodel.h5"), overwrite=True)
-        logging.info("Model saved")
-
-    def load_weights(self, actor_file_name, critic_file_name):
-        self.actor.model.load_weights(actor_file_name)
-        self.critic.model.load_weights(critic_file_name)
-        self.actor.target_model.load_weights(actor_file_name)
-        self.critic.target_model.load_weights(critic_file_name)
-        logging.info("Model loaded")
-
 
 class ActorNetwork:
-    def __init__(self, sess, state_size, action_size, tau, learning_rate):
+    def __init__(self, sess, action_size, state_size, tau, learning_rate):
         self.sess = sess
         self.tau = tau
         self.learning_rate = learning_rate
-
-        K.set_session(sess)
 
         self.model , self.weights, self.state = self.create_actor_network(state_size, action_size)   
         self.target_model, self.target_weights, self.target_state = self.create_actor_network(state_size, action_size) 
@@ -163,13 +152,11 @@ class ActorNetwork:
 
 
 class CriticNetwork:
-    def __init__(self, sess, state_size, action_size, tau, learning_rate):
+    def __init__(self, sess, action_size, state_size, tau, learning_rate):
         self.sess = sess
         self.tau = tau
         self.learning_rate = learning_rate
         self.action_size = action_size
-        
-        K.set_session(sess)
 
         #Now create the model
         self.model, self.action, self.state = self.create_critic_network(state_size, action_size)  
@@ -206,4 +193,15 @@ class CriticNetwork:
         return model, A, S
 
 
-__all__ = ['DDPG']
+def get_ddpg_agent(env):
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.Session(config=config)
+    K.set_session(sess)
+
+    actor = ActorNetwork(sess, env.action_dim, env.state_dim, TAU, LRA)
+    critic = CriticNetwork(sess, env.action_dim, env.state_dim, TAU, LRC)
+    agent = DDPG(env, actor, critic, sess)
+    return agent
+
+__all__ = ['DDPG', 'get_ddpg_agent']

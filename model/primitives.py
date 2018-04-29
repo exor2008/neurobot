@@ -1,17 +1,66 @@
-from abc import ABCMeta, abstractmethod
-import os
-import sys
-import logging
+from abc import abstractmethod
 
 import panda3d.core as core
 from panda3d.core import Vec3
-from panda3d.bullet import BulletPlaneShape
 from panda3d.bullet import BulletRigidBodyNode
 from panda3d.bullet import BulletBoxShape
 from panda3d.bullet import BulletHingeConstraint
 
-from gears import RigidBody, Renderable
+from basemodel import Renderable, BaseJoint
 import res_loader
+
+
+class RigidBody:
+    def __init__(self, node, pos, hpr, mass, friction):
+        self.node = node
+        self._transform = core.TransformState.makePosHpr(pos, hpr)
+        self.pos = pos
+        self.hpr = hpr
+        self.mass = mass
+        self.friction = friction
+
+    def _set_pos(self, pos):
+        self._transform = self._transform.setPos(pos)
+        self.node.set_transform(self._transform)
+
+    def _get_pos(self):
+        pos = self.node.get_transform().getPos()
+        return pos.x, pos.y, pos.z
+
+    def _set_hpr(self, hpr):
+        self._transform = self._transform.setHpr(hpr)
+        self.node.set_transform(self._transform)
+
+    def _get_hpr(self):
+        hpr = self.node.get_transform().getHpr()
+        return hpr.x, hpr.y, hpr.z
+
+    def _set_mass(self, mass):
+        self.node.set_mass(mass)
+
+    def _get_mass(self):
+        return self.node.get_mass()
+
+    def _set_friction(self, friction):
+        self.node.set_friction(friction)
+
+    def _get_friction(self):
+        return self.node.get_friction()
+
+    def _get_ang_velosity(self):
+        vel = self.node.getAngularVelocity()
+        return vel.x, vel.y, vel.z
+
+    def _get_lin_velosity(self):
+        vel =  self.node.getLinearVelocity()
+        return vel.x, vel.y, vel.z
+
+    pos = property(_get_pos, _set_pos)
+    hpr = property(_get_hpr, _set_hpr)
+    mass = property(_get_mass, _set_mass)
+    ang_vel = property(_get_ang_velosity)
+    lin_vel = property(_get_lin_velosity)
+    friction = property(_get_friction, _set_friction)
 
 
 class Box(RigidBody, Renderable):
@@ -28,7 +77,6 @@ class Box(RigidBody, Renderable):
         return node
 
     def render(self, render):
-        logging.debug('box rendered')
         self.load_model(self.color)
         self.model.set_scale(self.size)
         self.np = render.attachNewNode(self.node)
@@ -43,20 +91,6 @@ class Box(RigidBody, Renderable):
 
 Y_AXIS = (False, True, False)
 MAX_IMPULSE = 5
-
-
-class BaseJoint(metaclass=ABCMeta):
-    @abstractmethod
-    def set_impulse(self, impulse):
-        pass
-
-    @abstractmethod
-    def set_limit(self, *limits):
-        pass
-
-    @abstractmethod
-    def set_axis(self, *axis):
-        pass
 
 
 class HingeJoint(BaseJoint):
@@ -148,7 +182,60 @@ class Constructor:
         return light
 
 
-__all__ = ['Constructor']
+class Camera:
+    def __init__(self, base):
+        self.base = base
+
+    def _get_pos(self):
+        return self.base.cam.GetPos()
+
+    def _set_pos(self, pos):
+        self.base.cam.setPos(pos)
+
+    def _get_target(self):
+        return self.base.cam.GetTarget()
+
+    def _set_target(self, target):
+        self.base.cam.lookAt(target)
+        
+    pos = property(_get_pos, _set_pos)
+    target = property(_get_target, _set_target)
+
+
+class BaseRobot(Constructor, Renderable):
+    def __init__(self, physic):
+        Constructor.__init__(self)
+        self.physic = physic
+        self.construct()
+        # self.save_state()
+
+    @abstractmethod
+    def act(self, actions):
+        pass
+
+    @abstractmethod
+    def construct(self):
+        pass
+
+    def save_state(self):
+        self.saves = [part.pos for part in self.parts]
+
+    def reset(self):
+        [self.physic.removeRigidBody(part.node) for part in self._renderable]
+        [self.physic.removeConstraint(engine.constr) for engine in self._engines]
+        if hasattr(self, '_render'):
+            [part.np.remove_node() for part in self._renderable]
+        self._renderable = []
+        self._engines = []
+        self.parts = []
+        self.construct()
+        if hasattr(self, '_render'):
+            self.render(self._render)
+        # for val, part in zip(self.saves, self.parts):
+        #     part.pos = val
+
+
+__all__ = ['Constructor', 'Renderable', 'RigidBody', 'Camera']
 
 if __name__ == '__main__':
     box = Box()

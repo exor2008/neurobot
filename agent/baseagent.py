@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 
 
-class Agent(metaclass=ABCMeta):
+class BaseAgent(metaclass=ABCMeta):
 	def __init__(self, env):
 		self.env = env
 

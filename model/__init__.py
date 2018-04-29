@@ -1,4 +1,2 @@
-from gears import *
-from environment import *
-from robot import *
+import amoeba
 import primitives
