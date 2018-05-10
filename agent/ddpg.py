@@ -10,7 +10,7 @@ import tensorflow as tf
 import keras.backend as K
 import numpy as np
 from replaybuf import ReplayBuffer
-from utils import orn_uhlen
+from utils import orn_uhlen, discount
 from baseagent import BaseAgent
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(message)s')
@@ -54,12 +54,20 @@ class DDPG(BaseAgent, WeightSerialization):
         self.buff = ReplayBuffer(BUFFER_SIZE, ['state', 'action', 'reward', 'new_state', 'done'])
 
     def train(self, episodes):
+        logging.info('Playing pretraining episodes (without training)')
+        [self.play_episode(train=False) for _ in range(5)]
+        logging.info('Playing training episodes')
         return [self.play_episode() for _ in range(episodes)]
 
-    def play_episode(self):
-        state = self.env.reset()
+    def play_episode(self, train=True):
+        state = self.env.reset(train)
      
-        total_reward = 0.
+        e_states = []
+        e_actions = []
+        e_rewards = []
+        e_newstates = []
+        e_dones = []
+
         for step_count in range(MAX_STEPS):
             self.loss = 0 
             self.epsilon -= 1.0 / EXPLORE
@@ -68,11 +76,18 @@ class DDPG(BaseAgent, WeightSerialization):
             actions = self.noise_actions(actions, self.epsilon)
 
             new_state, reward, done = self.env.step(actions)
-            self.buff.add(state, actions, reward, new_state, done)
-            
-            self.loss = self._train_step()
 
-            total_reward += reward
+            e_states.append(state)
+            e_actions.append(actions)
+            e_rewards.append(reward)
+            e_newstates.append(new_state)
+            e_dones.append(done)
+
+            # self.buff.add(state, actions, reward, new_state, done)
+            
+            if train:
+                self.loss = self._train_step()
+
             state = new_state
         
             if not step_count % 50:
@@ -82,8 +97,11 @@ class DDPG(BaseAgent, WeightSerialization):
                 self.save_weights()
                 break
 
-        logging.info("Total reward for episode: {0}".format(total_reward))
-        return total_reward
+        for st, act, rew, nst, d in zip(e_states, e_actions, discount(e_rewards).tolist(), e_newstates, e_dones):
+            self.buff.add(st, act, rew, nst, d)
+
+        logging.info("Total reward for episode: {0}".format(discount(e_rewards).sum()))
+        return discount(e_rewards).sum()
 
     def predict(self, state):
         return self.actor.model.predict(state.reshape(1, state.shape[0])).ravel()

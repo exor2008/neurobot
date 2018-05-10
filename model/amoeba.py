@@ -28,7 +28,7 @@ class AmoebaDone(WorldInfo):
         return self.world.robot.body.pos[2] < -1
 
     def _done_time(self):
-        return self.world.time >= 60
+        return self.world.time >= 120
 
     def reset(self):
         pass
@@ -58,7 +58,7 @@ class AmoebaReward(AmoebaDone):
         return r
 
     def _reward_fall(self):
-        return -10 if self._done_fall() else 0
+        return -1 if self._done_fall() else 0
 
     def reset(self):
         self.max_range = 0
@@ -116,15 +116,15 @@ class AmoebaEnvironment(BaseEnvironment):
         self.world.reset()
         self.reward.reset()
         if torque:
-            self.torque_robot()
+            self.torque_robot(low=80, heigh=85)
         return self.observer.collect()
 
     def render(self, render, base):
         self.world.render(render, base)
     
-    def torque_robot(self):
-        angle = random.uniform(50, 70) * random.choice([-1, 1])
-        for _ in np.arange(0, 5, 0.1):
+    def torque_robot(self, duration=5, low=60, heigh=80):
+        angle = random.uniform(low, heigh) * random.choice([-1, 1])
+        for _ in np.arange(0, duration, 0.1):
             self.robot.body.node.apply_torque((0, 0, angle))
             self.physic.doPhysics(0.1)
         self.robot.body.node.clear_forces()
