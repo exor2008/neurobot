@@ -48,7 +48,7 @@ class AmoebaReward(AmoebaDone):
         self.max_range = max(self.max_range, self.world.robot.body.pos[0])
         advance = self.max_range - old_range
         course = np.deg2rad(self.world.robot.body.hpr[0])
-        r = advance * np.cos(course) - advance * np.abs(np.sin(course))
+        r = advance * np.cos(course) #- advance * np.abs(np.sin(course))
         # print('advance r', r)
         return r
 

@@ -9,7 +9,7 @@ from keras.optimizers import Adam
 import tensorflow as tf
 import keras.backend as K
 import numpy as np
-from replaybuf import ReplayBuffer
+import pandas as pd
 from utils import orn_uhlen, discount
 from baseagent import BaseAgent
 
@@ -42,16 +42,13 @@ class WeightSerialization:
 
 
 class DDPG(BaseAgent, WeightSerialization):
-    def __init__(self, env, actor, critic, sess):
+    def __init__(self, env, actor, critic, replay_buf, sess):
         super(DDPG, self).__init__(env)
         self.actor = actor
         self.critic = critic
         self.sess = sess
-        self.create_buffer()
+        self.buff = replay_buf
         self.epsilon = 1
-
-    def create_buffer(self):
-        self.buff = ReplayBuffer(BUFFER_SIZE, ['state', 'action', 'reward', 'new_state', 'done'])
 
     def train(self, episodes):
         logging.info('Playing pretraining episodes (without training)')
@@ -82,8 +79,6 @@ class DDPG(BaseAgent, WeightSerialization):
             e_rewards.append(reward)
             e_newstates.append(new_state)
             e_dones.append(done)
-
-            # self.buff.add(state, actions, reward, new_state, done)
             
             if train:
                 self.loss = self._train_step()
@@ -104,7 +99,7 @@ class DDPG(BaseAgent, WeightSerialization):
         return discount(e_rewards).sum()
 
     def predict(self, state):
-        return self.actor.model.predict(state.reshape(1, state.shape[0])).ravel()
+        return self.actor.target_model.predict(state.reshape(1, state.shape[0])).ravel()
 
     def _train_step(self):
         batch = self.buff.get_batch(BATCH_SIZE)
@@ -138,7 +133,7 @@ class ActorNetwork:
         self.tau = tau
         self.learning_rate = learning_rate
 
-        self.model , self.weights, self.state = self.create_actor_network(state_size, action_size)   
+        self.model, self.weights, self.state = self.create_actor_network(state_size, action_size)   
         self.target_model, self.target_weights, self.target_state = self.create_actor_network(state_size, action_size) 
         self.action_gradient = tf.placeholder(tf.float32,[None, action_size])
         self.params_grad = tf.gradients(self.model.output, self.weights, -self.action_gradient)
@@ -211,6 +206,37 @@ class CriticNetwork:
         return model, A, S
 
 
+class ReplayBuffer:
+    def __init__(self, capacity, columns=None):
+        self.capacity = capacity
+        self.columns = columns
+        self._buffer = deque()
+
+    def _get_size(self):
+        return len(self._buffer)
+
+    size = property(_get_size)
+
+    def get_batch(self, batch_size):
+        # Randomly sample batch_size examples
+        batch_size = min(batch_size, self.size)
+        batch = np.asarray(random.sample(self._buffer, batch_size))
+        batch = pd.DataFrame(batch)
+        if self.columns:
+            batch.columns = self.columns
+        return batch
+
+    def add(self, state, actions, reward, new_state, done):
+        if self.size < self.capacity:
+            self._buffer.append([state, actions, reward, new_state, done])
+        else:
+            self._buffer.popleft()
+            self._buffer.append([state, actions, reward, new_state, done])
+
+    def clear(self):
+        self._buffer = deque()
+
+
 def get_ddpg_agent(env):
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -219,7 +245,8 @@ def get_ddpg_agent(env):
 
     actor = ActorNetwork(sess, env.action_dim, env.state_dim, TAU, LRA)
     critic = CriticNetwork(sess, env.action_dim, env.state_dim, TAU, LRC)
-    agent = DDPG(env, actor, critic, sess)
+    replay_buf = ReplayBuffer(BUFFER_SIZE, ['state', 'action', 'reward', 'new_state', 'done'])
+    agent = DDPG(env, actor, critic, replay_buf, sess)
     return agent
 
 __all__ = ['DDPG', 'get_ddpg_agent']
